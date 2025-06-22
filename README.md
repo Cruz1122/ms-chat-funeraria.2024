@@ -1,127 +1,77 @@
-# Microservicio de Notificaciones - Funeraria Digital
+# Microservicio de Chat - Funeraria Digital
 
-Este microservicio es responsable de gestionar y enviar todas las notificaciones a los usuarios del sistema, incluyendo correos electrónicos y mensajes de texto (SMS). Está construido con Flask y se integra con los servicios de AWS (Amazon Web Services) para el envío de las notificaciones.
+Este microservicio está diseñado para proporcionar funcionalidades de chat en tiempo real para el sistema funerario, utilizando Node.js, Express y Socket.IO.
+
+> **ADVERTENCIA IMPORTANTE:** Este microservicio se encuentra en un estado de prototipo y **no es funcional ni seguro para un entorno de producción**. Contiene vulnerabilidades críticas de seguridad y errores de lógica que impiden su correcto funcionamiento. Se recomienda una reescritura completa antes de su uso.
 
 ## Tabla de Contenidos
 
 1.  [Descripción General](#descripción-general)
-2.  [Características](#características)
-3.  [Endpoints de la API](#endpoints-de-la-api)
-4.  [Configuración](#configuración)
-5.  [Instalación y Ejecución](#instalación-y-ejecución)
+2.  [Funcionalidades Previstas](#funcionalidades-previstas)
+3.  [Tecnologías Utilizadas](#tecnologías-utilizadas)
+4.  [Problemas Críticos y Funcionalidad Incompleta](#problemas-críticos-y-funcionalidad-incompleta)
+5.  [Instalación y Ejecución (Para Fines de Depuración)](#instalación-y-ejecución-para-fines-de-depuración)
+6.  [Eventos de Socket.IO](#eventos-de-socketio)
 
 ## Descripción General
 
-El microservicio de notificaciones centraliza la comunicación saliente del sistema funerario. Utiliza los siguientes servicios de AWS:
+La intención de este microservicio es ofrecer un sistema de chat que permita a los usuarios comunicarse en salas específicas, enviar mensajes privados y tener un historial de conversaciones persistente. Se conecta a una base de datos MySQL para almacenar usuarios y mensajes. El servidor se levanta sobre Express y utiliza Socket.IO para la comunicación en tiempo real.
 
-* **Amazon Simple Notification Service (SNS):** Para el envío de mensajes de texto (SMS) a los números de teléfono de los usuarios.
-* **Amazon Simple Email Service (SES):** Para el envío de correos electrónicos utilizando plantillas predefinidas.
+## Funcionalidades Previstas
 
-El servicio está diseñado para ser consumido por otros microservicios que necesiten notificar a los usuarios, como el envío de códigos de doble factor de autenticación (2FA) o la confirmación de registros.
+Aunque la implementación es defectuosa, el código intenta ofrecer las siguientes características:
 
-## Características
+* **Salas de Chat:** Los usuarios pueden unirse a salas específicas mediante un código único.
+* **Mensajería General:** Envío de mensajes a todos los miembros de una sala de chat.
+* **Mensajería Privada:** Envío de mensajes directos entre dos usuarios.
+* **Persistencia de Mensajes:** Los mensajes se guardan en una base de datos MySQL para poder cargarlos posteriormente.
+* **Bloqueo de Usuarios:** Una función para que un administrador con una "llave maestra" pueda bloquear a un usuario de una sala.
+* **Endpoint de Verificación:** Un endpoint HTTP (`/check-chat-room/:codigo`) para verificar la existencia de una sala de chat.
 
-* **Envío de SMS:** Proporciona endpoints para el envío de mensajes de texto.
-* **Envío de Correos Electrónicos:** Permite el envío de correos electrónicos basados en plantillas HTML de AWS SES.
-* **Integración con AWS:** Utiliza `boto3`, el SDK de AWS para Python, para comunicarse con los servicios de SNS y SES.
-* **Configuración Flexible:** Carga las credenciales de AWS y otras configuraciones desde variables de entorno.
+## Tecnologías Utilizadas
 
-## Endpoints de la API
+* **Backend:** Node.js
+* **Framework:** Express
+* **Comunicación Real-Time:** Socket.IO
+* **Base de Datos:** MySQL
 
-El microservicio expone los siguientes endpoints para el envío de notificaciones:
+## Problemas Críticos y Funcionalidad Incompleta
 
-### SMS
+* **Credenciales Hardcodeadas:** Las credenciales de la base de datos (host, usuario, contraseña) están escritas directamente en el código fuente (`server.js`), lo cual es una vulnerabilidad de seguridad extremadamente grave.
+* **Vulnerabilidad a Inyección SQL:** Las consultas a la base de datos se construyen concatenando strings directamente con la entrada del usuario, lo que hace al sistema vulnerable a ataques de inyección SQL.
+* **Falta de Autenticación de Usuarios:** El sistema no verifica la identidad de un usuario cuando se une a una sala. Cualquiera puede usar cualquier nombre de usuario, permitiendo la suplantación de identidad.
+* **Gestión de Estado Volátil:** El estado de los usuarios conectados (`users`, `codes`) se almacena en memoria, por lo que se perderá cada vez que el servidor se reinicie.
+* **Lógica de Bloqueo Defectuosa:** La función `isUserBlocked` contiene errores de sintaxis en la consulta SQL y su lógica para determinar si un usuario está bloqueado no es fiable.
 
-* `POST /sms`
-    * Envía un mensaje de texto genérico.
-    * **Payload (JSON):**
-        ```json
-        {
-          "destination": "NUMERO_DE_TELEFONO_DESTINO",
-          "message": "CONTENIDO_DEL_MENSAJE"
-        }
-        ```
+## Instalación y Ejecución (Para Fines de Depuración)
 
-* `POST /sms-2fa`
-    * Envía un mensaje de texto formateado para 2FA, incluyendo el nombre del usuario.
-    * **Payload (JSON):**
-        ```json
-        {
-          "destination": "NUMERO_DE_TELEFONO_DESTINO",
-          "name": "NOMBRE_DEL_USUARIO",
-          "message": "CONTENIDO_DEL_MENSAJE"
-        }
-        ```
-
-### Correo Electrónico
-
-* `POST /email`
-    * Envía un correo electrónico utilizando la plantilla `AWS-SES-Email-Without-Name`.
-    * **Payload (JSON):**
-        ```json
-        {
-          "destination": "CORREO_DESTINO",
-          "subject": "ASUNTO_DEL_CORREO",
-          "message": "CONTENIDO_DEL_MENSAJE"
-        }
-        ```
-
-* `POST /email-2fa`
-    * Envía un correo electrónico utilizando la plantilla `AWS-SES-Email-With-Name`, que incluye el nombre del usuario.
-    * **Payload (JSON):**
-        ```json
-        {
-          "destination": "CORREO_DESTINO",
-          "name": "NOMBRE_DEL_USUARIO",
-          "subject": "ASUNTO_DEL_CORREO",
-          "message": "CONTENIDO_DEL_MENSAJE"
-        }
-        ```
-
-## Configuración
-
-### Plantillas de AWS SES
-
-El servicio utiliza plantillas de correo electrónico predefinidas en AWS SES para asegurar un formato consistente. Las plantillas utilizadas son:
-
-* `AWS-SES-Email-Without-Name`: Una plantilla genérica.
-* `AWS-SES-Email-With-Name`: Una plantilla que incluye un saludo personalizado con el nombre del destinatario.
-
-### Variables de Entorno
-
-Para su correcto funcionamiento, el microservicio requiere la configuración de las siguientes variables de entorno en un archivo `.env` en la raíz del proyecto:
-
-* `AWS_ACCESS_KEY_ID:` Tu clave de acceso de AWS.
-* `AWS_SECRET_ACCESS_KEY:` Tu clave de acceso secreta de AWS.
-* `AWS_REGION:` La región de AWS donde están configurados tus servicios de SNS y SES (ej. `us-east-1`).
-
-## Instalación y Ejecución
-
-Para instalar y ejecutar el microservicio, sigue estos pasos:
+Siga estos pasos únicamente para inspeccionar el código. **No lo ejecute en un entorno de producción.**
 
 1.  **Clonar el repositorio:**
     ```bash
-    git clone [https://github.com/cruz1122/ms-notificaciones-funeraria.2024.git](https://github.com/cruz1122/ms-notificaciones-funeraria.2024.git)
-    cd ms-notificaciones-funeraria.2024
+    git clone [https://github.com/cruz1122/ms-chat-funeraria.2024.git](https://github.com/cruz1122/ms-chat-funeraria.2024.git)
+    cd ms-chat-funeraria.2024
     ```
 
-2.  **Crear un entorno virtual (recomendado):**
+2.  **Instalar dependencias:**
     ```bash
-    python -m venv venv
-    source venv/bin/activate  # En Windows: venv\Scripts\activate
+    npm install
     ```
 
-3.  **Instalar dependencias:**
+3.  **Configurar la Base de Datos:**
+    El servidor intentará conectarse a una base de datos MySQL en AWS. Dado que las credenciales están expuestas, esta base de datos no debe ser considerada segura.
+
+4.  **Ejecutar el servidor:**
     ```bash
-    pip install Flask python-dotenv boto3
+    node server.js
     ```
 
-4.  **Configurar variables de entorno:**
-    Crea un archivo `.env` en la raíz del proyecto y añade las credenciales de AWS.
+El servidor se iniciará en `http://localhost:3002`.
 
-5.  **Ejecutar el microservicio:**
-    ```bash
-    python server.py
-    ```
+## Eventos de Socket.IO
 
-El microservicio estará disponible en `http://127.0.0.1:5000`.
+* **`join (username, codigo)`**: Unirse a una sala de chat.
+* **`message (data)`**: Enviar un mensaje a la sala.
+* **`privateMessage (data)`**: Enviar un mensaje privado a otro usuario.
+* **`loadMessages ()`**: Solicitar el historial de mensajes de la sala.
+* **`blockUser (data)`**: Intentar bloquear a un usuario de la sala.
